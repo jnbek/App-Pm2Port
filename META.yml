@@ -19,15 +19,16 @@ no_index:
     - inc
     - t
 requires:
-  CPAN: 0
   CPANPLUS: 0
   ExtUtils::MakeMaker: 0
   File::Temp: 0
   FreeBSD::Ports::INDEXhash: 0
   Getopt::Long: 0
+  JSON::XS: 0
   Term::ReadLine: 0
   YAML: 0
+  perl: 5.10.0
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://developers.rambler.ru/svn/perlmodules/App-Pm2Port
-version: 0.24
+version: 0.26

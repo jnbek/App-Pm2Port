@@ -20,6 +20,7 @@ package App::Pm2Port;
 #===============================================================================
 
 $ENV{LC_ALL} = 'C';
+our $VERSION=0.26;
 use 5.010;
 use feature qw(switch state);
 use strict;
@@ -153,7 +154,7 @@ sub create_makefile {
     print $makefile "# Date created: " . `date "+\%d \%B \%Y"`;
     print $makefile "# \$FreeBSD\$\n";
     print $makefile
-      "# Generated with portupload. Do not edit directly, please\n\n";
+      "# Generated with App::Pm2Port $App::Pm2Port::VERSION. Do not edit directly, please\n\n";
     print $makefile "PORTNAME=	$file->{name}\n";
     print $makefile "PORTVERSION=	$file->{version}\n";
     print $makefile "CATEGORIES=	$portupload_file->{category} perl5\n";
@@ -171,6 +172,7 @@ sub create_makefile {
     print $makefile "\n";
     print $makefile "USE_APACHE=" . $portupload_file->{apache} . "\n"
       if $portupload_file->{apache};
+    print $makefile "PERL_MODBUILD=	YES" if -e 'Build.PL';
     print $makefile "PERL_CONFIGURE=	"
       . (
           $file->{requires}{perl}
