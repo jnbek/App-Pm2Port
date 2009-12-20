@@ -28,7 +28,8 @@ requires:
   Term::ReadLine: 0
   YAML: 0
   perl: 5.10.0
+  version: 0
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://developers.rambler.ru/svn/perlmodules/App-Pm2Port
-version: 0.26
+version: 0.27

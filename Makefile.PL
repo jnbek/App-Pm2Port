@@ -8,6 +8,7 @@ license  'perl';
 
 build_requires 'Test::More';
 requires 'YAML';
+requires 'version';
 requires 'Term::ReadLine';
 requires 'ExtUtils::MakeMaker';
 requires 'File::Temp';

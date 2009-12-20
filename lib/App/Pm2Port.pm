@@ -20,20 +20,21 @@ package App::Pm2Port;
 #===============================================================================
 
 $ENV{LC_ALL} = 'C';
-our $VERSION=0.26;
+our $VERSION=0.27;
 use 5.010;
-use feature qw(switch state);
 use strict;
 use warnings;
 use ExtUtils::MakeMaker();
 use Net::FTP;
 use Getopt::Long;
 use File::Temp qw(tempdir);
-use YAML qw(LoadFile DumpFile);
+use YAML qw(Dump LoadFile DumpFile);
 use JSON::XS;
 use version;
+use File::Basename qw(dirname);
 use CPAN;
 use CPANPLUS::Backend;
+use Config;
 use FreeBSD::Ports::INDEXhash qw/INDEXhash/;
 
 =head2 new
@@ -44,6 +45,7 @@ sub new {
     my $class  = shift;
     my %params = @_;
     $params{INDEX} = { INDEXhash() };
+    $params{cpan} = CPANPLUS::Backend->new;
     bless {%params}, $class;
 }
 
@@ -104,6 +106,7 @@ sub get_dependencies {
             next if $distribution =~ /^perl-/;
             $distribution = "p5-$distribution";
             $distribution =~ s/-v?[\d\.]+$//;
+            $distribution =~ s/^p5-(ANSIColor)$/p5-Term-$1/;
             $distribution =~ s/libwww-perl/libwww/;
         }
         else {
@@ -133,7 +136,7 @@ sub get_dependencies {
     }
     unshift @deps, '' if $ports;
     @deps = sort @deps;
-    join " \\\n\t\t\t\t", @deps;
+    join " \\\n\t\t", @deps;
 }
 
 =head2 create_makefile
@@ -150,8 +153,9 @@ sub create_makefile {
     my $man3            = shift;
     open +( my $makefile ), '>', 'Makefile';
     print $makefile "# New ports collection makefile for:  $file->{name}\n";
-    print $makefile "# Whom: $ENV{USER}\n";
     print $makefile "# Date created: " . `date "+\%d \%B \%Y"`;
+    print $makefile "# Whom: $ENV{USER}\n";
+    print $makefile "#\n"; 
     print $makefile "# \$FreeBSD\$\n";
     print $makefile
       "# Generated with App::Pm2Port $App::Pm2Port::VERSION. Do not edit directly, please\n\n";
@@ -168,7 +172,7 @@ sub create_makefile {
     print $makefile "BUILD_DEPENDS=	"
       . $self->get_dependencies( $file->{requires} )
       . $self->get_dependencies( $portupload_file->{requires}, 1 ) . "\n";
-    print $makefile "RUN_DEPENDS=\${BUILD_DEPENDS}\n";
+    print $makefile "RUN_DEPENDS=\t\${BUILD_DEPENDS}\n";
     print $makefile "\n";
     print $makefile "USE_APACHE=" . $portupload_file->{apache} . "\n"
       if $portupload_file->{apache};
@@ -255,14 +259,13 @@ qq{Usage: $0 [ --info ] [ --no-tests ] [ --no-upload ] [ --no-commit ] [ --cpan 
         }
     );
 
-    my $cpan = CPANPLUS::Backend->new;
-    my $module = $cpan->parse_module( module => $self->{module} );
+    my $module = $self->{cpan}->parse_module( module => $self->{module} );
     $module->fetch;
     chdir $module->extract;
 
-    print ">>> Creating Makefile\n";
     $module->prepare;
-    $module->test or die unless $ENV{NOTEST};
+    #$module->test or die unless $ENV{NOTEST};
+    $module->install;
     my $file    = $self->load_meta;
     my $version = $file->{version};
     $self->create_config( $file->{name} )
@@ -271,30 +274,13 @@ qq{Usage: $0 [ --info ] [ --no-tests ] [ --no-upload ] [ --no-commit ] [ --cpan 
     my $ftp;
     printf qq{
     Tests:  %s
-    Upload: %s
 },
       $ENV{NOTEST}    ? 'no' : 'yes',
       $ENV{NO_UPLOAD} ? 'no' : $portupload_file->{master_sites},
       ;
     exit if $ENV{INFO_ONLY};
-
-    my $man1 = join " \\\n\t\t", map { s{blib/man1/}{}; $_ } glob 'blib/man1/*';
-    my $man3 = join " \\\n\t\t", map { s{blib/man3/}{}; $_ } glob 'blib/man3/*';
-    my @pkg_plist = grep !/.exists$/, `find blib/lib -type f`;
-    ( my $dist_path = $file->{name} ) =~ s{-}{/}g;
-    push @pkg_plist,
-      '%%SITE_PERL%%/%%PERL_ARCH%%/auto/' . $dist_path . '/.packlist' . "\n";
-    push @pkg_plist, ( grep !/.exists$/, `find blib/script -type f` );
-    push @pkg_plist,
-      map { "\@dirrmtry $_" } grep { $_ } reverse `find blib/lib -type d`;
-    push @pkg_plist,
-      map { "\@dirrmtry $_" } grep { $_ } reverse `find blib/arch -type d`;
-    push @pkg_plist, map { "\@dirrmtry $_" } reverse `find blib/script -type d`;
-    @pkg_plist = map { $_ =~ s{blib/lib}{\%\%SITE_PERL\%\%}; $_ } @pkg_plist;
-    @pkg_plist =
-      map { $_ =~ s{blib/arch}{\%\%SITE_PERL\%\%/\%\%PERL_ARCH\%\%}; $_ }
-      @pkg_plist;
-    @pkg_plist = map { $_ =~ s{blib/script/}{bin/}; $_ } @pkg_plist;
+    print ">>> PList\n";
+    my ( $man1, $man3, @pkg_plist ) = $self->generate_plist( $module->packlist );
     system("make -s clean");
     chdir tempdir();
 
@@ -335,13 +321,67 @@ qq{Usage: $0 [ --info ] [ --no-tests ] [ --no-upload ] [ --no-commit ] [ --cpan 
             }
         }
         if ( -d 'CVS' ) {
-            system("port submit -m update");
+            system("port submit -c -m update");
         }
         else {
             system("port submit -m new");
         }
     }
 
+}
+
+=head2 generate_plist
+
+created list of manpages and pg-plist
+
+=cut
+
+sub generate_plist {
+    my ($self, $packlist ) = @_;
+    my @files = sort keys %$packlist;
+    my (@man1, @man3, @plist, @dlist);
+    foreach ( @files ) {
+        if (m{^$Config{man1dir}/(.+)$}) {
+            push @man1, $1;
+            next;
+        }
+        if (m{^$Config{man3dir}/(.+)$}) {
+            push @man3, $1;
+            next;
+        }
+        if (m{^$Config{installsitelib}/(.+)}) {
+            push @plist, '%%SITE_PERL%%/' . $1 . "\n";
+            push @dlist, $self->_get_dlist( $plist[-1] , '%%SITE_PERL%%' );
+            next;
+        }
+        if (m{^$Config{installsitebin}/(.+)}) {
+            push @plist, 'bin/' . $1 . "\n";
+            next;
+        }
+        die $_;
+    }
+    my $packlist_file = $packlist->packlist_file();
+    $packlist_file =~ s/$Config{installsitelib}/\%\%SITE_PERL\%\%\/\%\%PERL_ARCH\%\%/;
+    push @dlist, $self->_get_dlist( $packlist_file , '%%SITE_PERL%%/%%PERL_ARCH%%/auto' );
+    push @plist, $packlist_file . "\n";
+    my $man1 = join "\\\n\t\t", @man1;
+    my $man3 = join "\\\n\t\t", @man3;
+    my %dlist = map { $_ => 1 } @dlist;
+    return $man1, $man3, @plist, reverse sort keys %dlist;
+}
+
+sub _get_dlist {
+    my $self = shift;
+    my $file = shift;
+    my $root = shift;
+    my @dlist;
+    do {
+        $file = dirname($file);
+        die "Can't get directory list for $file from $root" if $file eq '.';
+        push @dlist, '@dirrmtry ' . $file . "\n";
+    } while ( $file ne $root );
+    pop @dlist;
+    return @dlist;
 }
 
 =head2 suggest_category
@@ -365,9 +405,21 @@ sub suggest_category {
         when (/^Catalyst|HTML|WWW$/) {
             return 'www';
         }
+        when (/^Net$/) {
+            return 'net';
+        }
+        when (/^CSS$/) {
+            return 'textproc';
+        }
     }
     return undef, 'devel';
 }
+
+=head2 load_meta
+
+Loads META.yml or META.json
+
+=cut
 
 sub load_meta {
     my $self = shift;
