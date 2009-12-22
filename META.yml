@@ -32,4 +32,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://developers.rambler.ru/svn/perlmodules/App-Pm2Port
-version: 0.27
+version: 0.28

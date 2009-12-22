@@ -20,7 +20,7 @@ package App::Pm2Port;
 #===============================================================================
 
 $ENV{LC_ALL} = 'C';
-our $VERSION=0.27;
+our $VERSION=0.28;
 use 5.010;
 use strict;
 use warnings;
@@ -152,13 +152,13 @@ sub create_makefile {
     my $man1            = shift;
     my $man3            = shift;
     open +( my $makefile ), '>', 'Makefile';
+    ( my $comment = $file->{abstract} ) =~ s/\.$//;
+    $comment = ucfirst $comment;
     print $makefile "# New ports collection makefile for:  $file->{name}\n";
     print $makefile "# Date created: " . `date "+\%d \%B \%Y"`;
-    print $makefile "# Whom: $ENV{USER}\n";
+    print $makefile "# Whom: $portupload_file->{maintainer}\n";
     print $makefile "#\n"; 
-    print $makefile "# \$FreeBSD\$\n";
-    print $makefile
-      "# Generated with App::Pm2Port $App::Pm2Port::VERSION. Do not edit directly, please\n\n";
+    print $makefile "# \$FreeBSD\$\n\n";
     print $makefile "PORTNAME=	$file->{name}\n";
     print $makefile "PORTVERSION=	$file->{version}\n";
     print $makefile "CATEGORIES=	$portupload_file->{category} perl5\n";
@@ -167,7 +167,7 @@ sub create_makefile {
     print $makefile "PKGNAMEPREFIX=	p5-\n";
     print $makefile "\n";
     print $makefile "MAINTAINER=	$portupload_file->{maintainer}\n";
-    print $makefile "COMMENT=	$file->{abstract}\n";
+    print $makefile "COMMENT=	$comment\n";
     print $makefile "\n";
     print $makefile "BUILD_DEPENDS=	"
       . $self->get_dependencies( $file->{requires} )
@@ -308,9 +308,7 @@ qq{Usage: $0 [ --info ] [ --no-tests ] [ --no-upload ] [ --no-commit ] [ --cpan 
     close PLIST;
     open PDESCR, '>', 'pkg-descr';
     print PDESCR $file->{abstract};
-    print PDESCR "\n\nWWW: http://search.cpan.org/~"
-      . $module->author->cpanid . "/"
-      . $file->{name} . "\n";
+    print PDESCR "\n\nWWW: http://search.cpan.org/dist/$file->{name}\n";
     if ( !system("$ENV{EDITOR} Makefile") ) {
         print ">>> Enter your root password:\n";
         system("sudo port fetch");
