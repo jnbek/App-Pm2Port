@@ -13,6 +13,7 @@ package App::Pm2Port;
 #         BUGS:  ---
 #        NOTES:  ---
 #       AUTHOR:  Andrey Kostenko (), <andrey@kostenko.name>
+#       CONTIB:  John D Jones III, <cpan@perlgeek4u.net>
 #      COMPANY:  Rambler Internet Holding
 #      VERSION:  1.0
 #      CREATED:  26.06.2009 02:13:30 MSD
@@ -20,22 +21,23 @@ package App::Pm2Port;
 #===============================================================================
 
 $ENV{LC_ALL} = 'C';
-our $VERSION=0.28;
-use 5.010;
+use 5.012;
 use strict;
 use warnings;
-use ExtUtils::MakeMaker();
+use version;
+use CPAN;
+use Config;
+use JSON::XS;
 use Net::FTP;
 use Getopt::Long;
-use File::Temp qw(tempdir);
-use YAML qw(Dump LoadFile DumpFile);
-use JSON::XS;
-use version;
-use File::Basename qw(dirname);
-use CPAN;
 use CPANPLUS::Backend;
-use Config;
-use FreeBSD::Ports::INDEXhash qw/INDEXhash/;
+use ExtUtils::MakeMaker();
+use File::Temp qw(tempdir);
+use File::Basename qw(dirname);
+use YAML qw(Dump LoadFile DumpFile);
+use FreeBSD::Ports::INDEXhash qw(INDEXhash);
+
+our $VERSION=qv(0.30_01);
 
 =head2 new
 
@@ -43,10 +45,10 @@ use FreeBSD::Ports::INDEXhash qw/INDEXhash/;
 
 sub new {
     my $class  = shift;
-    my %params = @_;
-    $params{INDEX} = { INDEXhash() };
-    $params{cpan} = CPANPLUS::Backend->new;
-    bless {%params}, $class;
+    my $params = shift;
+    $params->{INDEX} = { INDEXhash() };
+    $params->{cpan} = CPANPLUS::Backend->new;
+    return bless $params, $class;
 }
 
 =head2 prompt

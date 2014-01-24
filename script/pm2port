@@ -1,10 +1,33 @@
 #!/usr/bin/env perl
+
+use strict;
+use warnings;
+
 use App::Pm2Port;
 
-die "Usage: $0 Module::Name" unless @ARGV;
-my $a = App::Pm2Port->new( module => $ARGV[0] );
+( bless {}, __PACKAGE__ )->main();
 
-$a->run;
+sub main {
+    my $self = shift;
+    my $opts = {};
+    die "Usage: $0 Module::Name" unless @ARGV;
+    my $result = GetOptions(
+        'h|help' => sub {
+            print
+              qq{Usage: $0 [ --module=My::Module ] [ --info ] [ --no-tests ] [ --no-upload ] [ --no-commit ] [ --cpan ]\n};
+            exit 0;
+        },
+        'info'      => \$opts->{'info_only'},
+        'no-tests'  => \$opts->{'notest'},
+        'no-upload' => \$opts->{'no_upload'},
+        'no-commit' => \$opts->{'no_commit'},
+        'freebsd'   => \$opts->{'submit_to_freebsd'},
+        'modules=s' => \$opts->{'module'},
+    );
+    my $a = App::Pm2Port->new($opts);
+
+    $a->run;
+}
 
 =head1 NAME
 

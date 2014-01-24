@@ -1,0 +1,6 @@
+App::Pm2Port
+
+A Perl Module to FreeBSD Port Utility.
+
+Uses
+CPANPLUS: For all the Module Fetching, Testing, etc. and Creates a FreeBSD Port. Options to Upload to the Ports Tree is possible as well.
